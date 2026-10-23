@@ -460,7 +460,7 @@
     </div>
   </div>
 </div>
-<div id="menu-footer">© tgcplayz4220 // v2026.10.22</div>
+<div id="menu-footer">© tgcplayz4220 // v2026.10.23</div>
 
 <!-- Death dim overlay -->
 <div id="death-dim"></div>
@@ -574,16 +574,16 @@ function xpFromEat(botXp, eaterRankIdx) {
 }
 
 // ── Speed helpers ─────────────────────────────────────────────────────
-// Player starts at 0.85, slows from Yellow onward, floors at 0.5
+// Speeds are in px/frame at 60 fps; delta-time scaling keeps them
+// frame-rate independent without changing the actual feel.
 function playerSpeed(rankIdx) {
-  if (rankIdx < 18) return 0.85;                        // Red & Orange
-  const t = (rankIdx - 18) / (35 - 18);                // 0→1 across Yellow+Green
-  return Math.max(0.5, 0.85 - t * 0.35);
+  if (rankIdx < 18) return 3.5;
+  const t = (rankIdx - 18) / (35 - 18);
+  return Math.max(2.4, 3.5 - t * 1.1);
 }
-// Bots start slow; gradually catch up toward player's floor speed
 function botSpeed(botRankIdx) {
   const t = Math.min(1, botRankIdx / 35);
-  return 0.35 + t * 0.35; // 0.35 → 0.7
+  return 1.5 + t * 1.0;
 }
 
 // ── Player ────────────────────────────────────────────────────────────
@@ -817,6 +817,7 @@ function startGame() {
   for (let i = 0; i < WHITE_CAP; i++) spawnFood();
   for (let i = 0; i < BOT_CAP;   i++) spawnBot();
   lastMaintain = performance.now(); // reset so maintenance doesn't fire on tick 1
+  lastTs = 0; // reset delta-time on new game
   gameStarted = true;
 }
 
@@ -887,8 +888,9 @@ function botGainXP(bot, amount) {
 }
 
 // ── Bot AI ────────────────────────────────────────────────────────────
-function updateBot(bot) {
-  bot.changeDir--;
+// dt: delta-time ratio (1.0 = perfect 60fps frame)
+function updateBot(bot, dt) {
+  bot.changeDir -= dt;
   if (bot.changeDir <= 0) {
     bot.changeDir = 60 + Math.floor(Math.random() * 120);
     let closest = null, closestD = 9999;
@@ -935,8 +937,9 @@ function updateBot(bot) {
     }
   }
 
-  bot.x = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.x + bot.vx));
-  bot.y = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.y + bot.vy));
+  // Apply dt so movement is frame-rate independent
+  bot.x = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.x + bot.vx * dt));
+  bot.y = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.y + bot.vy * dt));
 
   // Eat food
   for (let i = food.length - 1; i >= 0; i--) {
@@ -958,9 +961,10 @@ function updateBot(bot) {
 }
 
 // ── Player update ─────────────────────────────────────────────────────
-function updatePlayer() {
+// dt: delta-time ratio (1.0 = perfect 60fps frame)
+function updatePlayer(dt) {
   if (!player.alive) return;
-  const spd = playerSpeed(player.rankIdx);
+  const spd = playerSpeed(player.rankIdx) * dt;
   if (keys['w'] || keys['arrowup'])    player.y -= spd;
   if (keys['s'] || keys['arrowdown'])  player.y += spd;
   if (keys['a'] || keys['arrowleft'])  player.x -= spd;
@@ -1253,7 +1257,7 @@ function drawWorld() {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────
-function updateHUD() {
+function updateHUD(dt) {
   const col = rankColor(player.rankIdx);
   const r   = rankFromIndex(player.rankIdx);
 
@@ -1278,7 +1282,7 @@ function updateHUD() {
   bonusEl.style.color = totalBonus > 0 ? '#3ccc50' : 'rgba(255,255,255,0.5)';
 
   if (levelUpFlash > 0) {
-    levelUpFlash--;
+    levelUpFlash = Math.max(0, levelUpFlash - dt);
     ctx.save();
     ctx.globalAlpha = (levelUpFlash / 60) * 0.22;
     ctx.fillStyle   = col;
@@ -1325,26 +1329,33 @@ document.getElementById('menu-btn').onclick = () => {
 
 // ── Main loop ─────────────────────────────────────────────────────────
 let lastMaintain = 0;
+let lastTs = 0; // tracks previous frame timestamp for delta-time
+
 function loop(ts) {
   requestAnimationFrame(loop);
 
   if (!gameStarted) return;
 
+  // Delta-time: ratio of actual frame duration to target (16.67ms = 60fps).
+  // Capped at 3× so a long stall doesn't teleport entities.
+  const dt = lastTs === 0 ? 1 : Math.min((ts - lastTs) / (1000 / 60), 3);
+  lastTs = ts;
+
   if (!player.alive) {
     // Keep rendering for the explosion
     if (particles.length > 0) {
-      labelTick++;
+      labelTick += dt;
       updateParticles();
       updateCam();
       drawWorld();
-      updateHUD();
+      updateHUD(dt);
     }
     return;
   }
 
-  labelTick++;
-  updatePlayer();
-  for (const b of bots) if (b.alive) updateBot(b);
+  labelTick += dt;
+  updatePlayer(dt);
+  for (const b of bots) if (b.alive) updateBot(b, dt);
 
   if (ts - lastMaintain > 2000) {
     bots = bots.filter(b => b.alive);
@@ -1355,7 +1366,7 @@ function loop(ts) {
 
   updateCam();
   drawWorld();
-  updateHUD();
+  updateHUD(dt);
 }
 requestAnimationFrame(loop);
 </script>
