@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Evolution</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+    width: 100vw; height: 100vh;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+
+  /* ── HUD panel ── */
+  #ui {
+    position: absolute; top: 14px; left: 14px;
+    background: rgba(0,0,0,0.52);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 12px 16px 14px;
+    min-width: 210px;
+    color: #fff;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #rank-display {
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.03em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #rank-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  #xp-bar-wrap {
+    margin-top: 9px;
+    width: 100%; height: 6px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px; overflow: hidden;
+  }
+  #xp-bar { height: 100%; width: 0%; border-radius: 3px; transition: width 0.18s ease; }
+  #xp-row {
+    margin-top: 5px;
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: rgba(255,255,255,0.55);
+    font-variant-numeric: tabular-nums;
+  }
+  #divider { margin: 10px 0 8px; border: none; border-top: 1px solid rgba(255,255,255,0.08); }
+  #score-display { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+  /* ── Death screen ── */
+  #death-screen {
+    display: none; position: absolute; inset: 0;
+    color: #fff;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 0; z-index: 20;
+  }
+  @keyframes card-pop {
+    0%   { transform: scale(0.15); opacity: 0; }
+    60%  { transform: scale(1.06); opacity: 1; }
+    80%  { transform: scale(0.97); }
+    100% { transform: scale(1);    }
+  }
+  #death-card {
+    background: rgba(15,15,15,0.82);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 18px;
+    padding: 44px 52px 40px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    min-width: 320px;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+    animation: card-pop 0.9s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  }
+  #death-icon { font-size: 44px; line-height: 1; margin-bottom: 4px; }
+  #death-screen h2 {
+    font-size: 32px; font-weight: 900;
+    letter-spacing: 0.01em; margin: 0;
+    color: #ff4444;
+  }
+  #death-rank {
+    font-size: 15px; color: rgba(255,255,255,0.55);
+    margin: 0 0 18px;
+  }
+  #death-btns { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  #restart-btn {
+    width: 100%; padding: 12px;
+    background: #e84040; border: none;
+    border-radius: 9px; color: #fff;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.03em;
+  }
+  #restart-btn:hover  { background: #ff5555; transform: translateY(-1px); }
+  #restart-btn:active { transform: translateY(0); }
+  #menu-btn {
+    width: 100%; padding: 12px;
+    background: transparent;
+    border: 2px solid #e8c820;
+    border-radius: 9px; color: #e8c820;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.03em;
+  }
+  #menu-btn:hover  { background: rgba(232,200,32,0.12); transform: translateY(-1px); }
+  #menu-btn:active { transform: translateY(0); }
+
+  #controls-hint {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    color: #ffffff44; font-size: 12px; pointer-events: none;
+  }
+
+  /* ── Main menu ── */
+  #main-menu {
+    position: absolute; inset: 0;
+    background: #1a1a1a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding-top: 36px;
+    gap: 0;
+    z-index: 30;
+  }
+  #menu-title {
+    font-size: 52px; font-weight: 900;
+    letter-spacing: 0.02em;
+    color: #fff;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  #menu-subtitle {
+    font-size: 14px; color: #ffffff44;
+    margin-bottom: 24px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #menu-row {
+    display: flex;
+    align-items: stretch;
+    gap: 14px;
+  }
+  #menu-grid {
+    width: 860px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  #shop-panel, #account-panel {
+    width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, transform 0.12s;
+    flex-shrink: 0;
+  }
+  #shop-panel:hover, #account-panel:hover {
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(255,255,255,0.22);
+    transform: translateY(-2px);
+  }
+  #shop-panel:active, #account-panel:active {
+    transform: translateY(0);
+  }
+  #shop-icon, #account-icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+  #shop-label, #account-label {
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+  }
+  .menu-half {
+    padding: 20px 36px 20px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px;
+    min-height: 160px;
+  }
+  /* internal dividers via box-shadow on each cell */
+  .menu-half:nth-child(2)  { border-left:  1px solid rgba(255,255,255,0.08); }
+  .menu-half:nth-child(3)  { border-top:   1px solid rgba(255,255,255,0.08); }
+  .menu-half:nth-child(4)  { border-top:   1px solid rgba(255,255,255,0.08);
+                              border-left:  1px solid rgba(255,255,255,0.08);
+                              padding: 14px 24px 14px; gap: 0; }
+  .menu-cell-label {
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+    margin: 0;
+  }
+  .menu-half.label-top { justify-content: flex-start; }
+  #level-num {
+    display: block;
+    text-align: center;
+    font-size: 48px; font-weight: 900;
+    color: #fff; line-height: 1;
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+    width: 100%;
+  }
+  #level-display {
+    width: 100%;
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 12px;
+  }
+  #level-bar-wrap {
+    width: 100%; height: 7px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px; overflow: hidden;
+  }
+  #level-bar {
+    height: 100%; width: 0%;
+    background: #e84040;
+    border-radius: 4px;
+    transition: width 0.2s ease;
+  }
+  #level-kill-row {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #level-kills-text {
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,255,255,0.5);
+    font-variant-numeric: tabular-nums;
+  }
+  #level-pct-label {
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #level-next-label {
+    font-size: 11px; color: rgba(255,255,255,0.3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  #boost-card {
+    width: 100%; margin-top: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 9px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  #boost-top {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #boost-level-label {
+    font-size: 12px; font-weight: 800;
+    color: #fff; letter-spacing: 0.02em;
+  }
+  #boost-badge {
+    font-size: 11px; font-weight: 800;
+    color: #3ccc50;
+    background: rgba(60,204,80,0.12);
+    border: 1px solid rgba(60,204,80,0.3);
+    border-radius: 999px;
+    padding: 2px 8px;
+    letter-spacing: 0.04em;
+  }
+  #boost-desc {
+    font-size: 11px; color: rgba(255,255,255,0.35);
+    line-height: 1.4;
+  }
+  #boost-desc span { color: #3ccc50; font-weight: 700; }
+
+  #code-card {
+    width: 100%; margin-top: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 9px 12px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  #code-top {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #code-title {
+    font-size: 12px; font-weight: 800;
+    color: #fff; letter-spacing: 0.02em;
+  }
+  #code-active-badge {
+    font-size: 10px; font-weight: 800;
+    color: #e8c820;
+    background: rgba(232,200,32,0.12);
+    border: 1px solid rgba(232,200,32,0.3);
+    border-radius: 999px;
+    padding: 2px 8px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  #code-active-info {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #code-active-name {
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  #code-active-pct {
+    font-size: 12px; font-weight: 800; color: #e8c820;
+  }
+  #code-form-row {
+    display: flex; gap: 6px;
+  }
+  #code-input {
+    flex: 1; padding: 7px 10px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #fff; font-size: 12px;
+    font-family: 'Segoe UI', sans-serif;
+    outline: none; letter-spacing: 0.05em;
+    transition: border-color 0.2s;
+    text-transform: uppercase;
+  }
+  #code-input::placeholder { color: rgba(255,255,255,0.25); text-transform: none; }
+  #code-input:focus { border-color: rgba(255,255,255,0.35); }
+  #code-submit-btn {
+    padding: 7px 12px;
+    background: #e8c820; border: none;
+    border-radius: 6px; color: #1a1a1a;
+    font-size: 12px; font-weight: 800;
+    cursor: pointer; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  #code-submit-btn:hover  { background: #f5d930; transform: translateY(-1px); }
+  #code-submit-btn:active { transform: translateY(0); }
+  #code-msg {
+    font-size: 11px; font-weight: 700;
+    min-height: 14px; letter-spacing: 0.03em;
+  }
+  #code-hint {
+    font-size: 10px; color: rgba(255,255,255,0.28);
+    letter-spacing: 0.02em; line-height: 1.4;
+  }
+  #code-hint strong { color: #e8c820; font-weight: 800; }
+  .rules-list {
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%;
+  }
+  .rule-row {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 9px 14px;
+  }
+  .rule-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .rule-text {
+    font-size: 13px; font-weight: 700;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 0.02em;
+  }
+  #menu-form {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+    width: 100%;
+  }
+  #username-input {
+    width: 100%; padding: 11px 16px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: #fff; font-size: 15px;
+    font-family: 'Segoe UI', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+    text-align: center;
+  }
+  #username-input::placeholder { color: rgba(255,255,255,0.3); }
+  #username-input:focus { border-color: rgba(255,255,255,0.4); }
+  #play-btn {
+    width: 100%; padding: 13px;
+    background: #e84040; border: none;
+    border-radius: 8px; color: #fff;
+    font-size: 17px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  #play-btn:hover  { background: #ff5555; transform: translateY(-1px); }
+  #play-btn:active { transform: translateY(0); }
+
+
+  /* ── Menu footer ── */
+  #menu-footer {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: #ffffff33;
+    white-space: nowrap; pointer-events: none;
+    z-index: 31;
+  }
+
+  /* ── EvoPoints badge ── */
+  #ep-badge {
+    position: absolute; top: 16px; right: 20px;
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 7px 16px 7px 12px;
+    z-index: 31;
+  }
+  #ep-symbol {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 3px #2a2a2a, 0 0 0 5px #fff;
+    flex-shrink: 0;
+  }
+  #ep-amount {
+    font-size: 14px; font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── In-game Back button ── */
+  #ingame-back-btn {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px; font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+    pointer-events: all;
+    width: 100%;
+    text-align: center;
+  }
+  #ingame-back-btn:hover  {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.45);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+  #ingame-back-btn:active { transform: translateY(0); }
+
+  /* ── Death dim overlay ── */
+  #death-dim {
+    display: none; position: absolute; inset: 0;
+    background: #000; opacity: 0;
+    z-index: 19; pointer-events: none;
+    transition: opacity 0.45s ease;
+  }
+
+  /* ── Shop overlay ── */
+  #shop-blur {
+    display: none;
+    position: absolute; inset: 0;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0,0,0,0.55);
+    z-index: 40;
+    align-items: center;
+    justify-content: center;
+  }
+  #shop-blur.open { display: flex; }
+  @keyframes shop-in {
+    0%   { transform: scale(0.88) translateY(24px); opacity: 0; }
+    60%  { transform: scale(1.02) translateY(-4px); opacity: 1; }
+    80%  { transform: scale(0.99) translateY(2px); }
+    100% { transform: scale(1)    translateY(0);   opacity: 1; }
+  }
+  @keyframes blur-in {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  #shop-blur.open { animation: blur-in 0.35s ease both; }
+  #shop-blur.open #shop-modal { animation: shop-in 0.8s cubic-bezier(0.34, 1.1, 0.64, 1) both; }
+
+  /* ── Shop modal shell ── */
+  #shop-modal {
+    background: rgba(18,18,18,0.96);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    width: 820px;
+    min-height: 480px;
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    box-shadow: 0 16px 64px rgba(0,0,0,0.75);
+    overflow: hidden;
+  }
+
+  /* ── Shop sidebar nav ── */
+  #shop-sidebar {
+    width: 160px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.03);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 12px 20px;
+    gap: 4px;
+  }
+  #shop-sidebar-title {
+    font-size: 10px; font-weight: 900;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    padding: 0 6px;
+    margin-bottom: 10px;
+  }
+  .shop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.14s, color 0.14s;
+    color: rgba(255,255,255,0.4);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+  .shop-nav-item .nav-icon { font-size: 15px; line-height: 1; }
+  .shop-nav-item:hover {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.7);
+  }
+  .shop-nav-item.active {
+    background: rgba(232,200,32,0.1);
+    border-color: rgba(232,200,32,0.28);
+    color: #e8c820;
+  }
+  #shop-sidebar-footer {
+    margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding-top: 14px;
+  }
+  #shop-ep-label {
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.03em;
+    text-align: center;
+    line-height: 1.6;
+  }
+  #shop-ep-label span { color: #fff; font-weight: 900; font-size: 13px; }
+
+  /* ── Shop main area ── */
+  #shop-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 28px 24px;
+    overflow-y: auto;
+    position: relative;
+  }
+  #shop-close-btn {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.6);
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    line-height: 1;
+    z-index: 2;
+  }
+  #shop-close-btn:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.3);
+    color: #fff;
+  }
+
+  /* ── Tab panels ── */
+  .shop-tab { display: none; flex-direction: column; gap: 0; flex: 1; }
+  .shop-tab.active { display: flex; }
+  .shop-tab-header {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .shop-tab-title {
+    font-size: 18px; font-weight: 900;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .shop-tab-subtitle {
+    font-size: 12px; color: rgba(255,255,255,0.35);
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Premium tab ── */
+  #premium-hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, rgba(232,200,32,0.08) 0%, rgba(232,200,32,0.03) 100%);
+    border: 1px solid rgba(232,200,32,0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+  }
+  #premium-hero-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
+  #premium-hero-body { flex: 1; }
+  #premium-hero-title {
+    font-size: 14px; font-weight: 900;
+    color: #e8c820; letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  #premium-hero-perks {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .perk-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(232,200,32,0.1);
+    border: 1px solid rgba(232,200,32,0.22);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px; font-weight: 700;
+    color: #e8c820; letter-spacing: 0.04em;
+  }
+  #premium-active-banner {
+    display: none;
+    background: rgba(60,204,80,0.08);
+    border: 1px solid rgba(60,204,80,0.3);
+    border-radius: 10px;
+    padding: 11px 16px;
+    margin-bottom: 16px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+  #premium-active-banner.visible { display: flex; }
+  #premium-banner-icon { font-size: 18px; }
+  #premium-banner-text { flex: 1; }
+  #premium-banner-label {
+    font-size: 12px; font-weight: 900;
+    color: #3ccc50; letter-spacing: 0.05em; text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  #premium-expiry-text {
+    font-size: 11px; color: rgba(255,255,255,0.45);
+  }
+  #premium-no-stack-notice {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,68,68,0.07);
+    border: 1px solid rgba(255,68,68,0.22);
+    border-radius: 8px;
+    padding: 9px 14px;
+    margin-bottom: 14px;
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,100,100,0.85);
+    letter-spacing: 0.03em;
+  }
+  #premium-no-stack-notice.visible { display: flex; }
+  #premium-tiers {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .premium-tier {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 18px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+    position: relative;
+  }
+  .premium-tier:hover {
+    background: rgba(232,200,32,0.07);
+    border-color: rgba(232,200,32,0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 24px rgba(232,200,32,0.12);
+  }
+  .premium-tier:active { transform: translateY(0); box-shadow: none; }
+  .premium-tier.disabled {
+    opacity: 0.32;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .premium-tier.best-value::before {
+    content: 'BEST VALUE';
+    position: absolute;
+    top: -1px; left: 50%; transform: translateX(-50%);
+    background: #e8c820;
+    color: #111;
+    font-size: 8px; font-weight: 900;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 0 0 6px 6px;
+  }
+  .premium-tier-icon { font-size: 22px; margin-bottom: 2px; }
+  .premium-tier-duration {
+    font-size: 15px; font-weight: 900;
+    color: #fff; letter-spacing: 0.02em;
+  }
+  .premium-tier-cost {
+    font-size: 13px; font-weight: 800;
+    color: #e8c820;
+    letter-spacing: 0.03em;
+  }
+  .premium-tier-desc {
+    font-size: 10px; color: rgba(255,255,255,0.3);
+    text-align: center; line-height: 1.5;
+    margin-top: 2px;
+  }
+  #premium-msg {
+    font-size: 12px; font-weight: 700;
+    min-height: 16px; letter-spacing: 0.03em;
+    text-align: center;
+  }
+  #premium-status-label {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.03em;
+    text-align: center;
+  }
+
+  /* ── Coming Soon tab ── */
+  #tab-coming-soon {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: rgba(255,255,255,0.18);
+    padding: 40px;
+    text-align: center;
+  }
+  #tab-coming-soon .cs-icon { font-size: 36px; margin-bottom: 6px; }
+  #tab-coming-soon .cs-title { font-size: 15px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+  #tab-coming-soon .cs-sub { font-size: 12px; color: rgba(255,255,255,0.12); letter-spacing: 0.04em; }
+
+  /* ── Anti-cheat overlays ── */
+  #ac-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    z-index: 99;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.78);
+    backdrop-filter: blur(8px);
+  }
+  #ac-overlay.ac-visible { display: flex; }
+  #ac-card {
+    background: rgba(14,14,14,0.97);
+    border-radius: 18px;
+    padding: 44px 52px 40px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    min-width: 340px; max-width: 480px;
+    box-shadow: 0 12px 56px rgba(0,0,0,0.7);
+    text-align: center;
+  }
+  #ac-overlay.ac-warning #ac-card { border: 1px solid rgba(255,180,0,0.45); }
+  #ac-overlay.ac-ban     #ac-card { border: 1px solid rgba(255,60,60,0.45); }
+  #ac-icon { font-size: 46px; line-height: 1; }
+  #ac-title {
+    font-size: 22px; font-weight: 900;
+    letter-spacing: 0.01em; margin: 0;
+  }
+  #ac-overlay.ac-warning #ac-title { color: #f5c518; }
+  #ac-overlay.ac-ban     #ac-title { color: #ff4444; }
+  #ac-body {
+    font-size: 13px; color: rgba(255,255,255,0.6);
+    line-height: 1.6; max-width: 340px;
+  }
+  #ac-body strong { color: rgba(255,255,255,0.9); }
+  #ac-dismiss-btn {
+    margin-top: 8px;
+    padding: 12px 32px;
+    background: #e8c820; border: none;
+    border-radius: 9px; color: #111;
+    font-size: 14px; font-weight: 800;
+    cursor: pointer; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  #ac-dismiss-btn:hover  { background: #f5d930; transform: translateY(-1px); }
+  #ac-dismiss-btn:active { transform: translateY(0); }
+
+  /* ── FPS counter ── */
+  #fps-counter {
+    display: none;
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(0,0,0,0.52);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 5px 11px;
+    color: #fff;
+    font-size: 12px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<!-- Main menu -->
+<div id="main-menu">
+  <div id="ep-badge">
+    <div id="ep-symbol"></div>
+    <div id="ep-amount">0</div>
+  </div>
+  <div id="menu-title">Color Evolution</div>
+  <div id="menu-subtitle">Survive · Evolve · Dominate</div>
+  <div id="menu-row">
+  <div id="account-panel">
+    <div id="account-icon">👤</div>
+    <div id="account-label">Account</div>
+  </div>
+  <div id="menu-grid">
+    <div class="menu-half">
+      <div class="menu-cell-label">Play</div>
+      <div id="menu-form">
+        <input id="username-input" type="text" maxlength="16" placeholder="Enter username..." spellcheck="false" />
+        <button id="play-btn">PLAY</button>
+      </div>
+    </div>
+    <div class="menu-half label-top">
+      <div class="menu-cell-label">Level</div>
+      <span id="level-num">0</span>
+      <div id="level-display">
+        <div id="level-bar-wrap"><div id="level-bar"></div></div>
+        <div id="level-kill-row">
+          <span id="level-kills-text">0 / 20 kills</span>
+          <span id="level-pct-label">0% Complete</span>
+          <span id="level-next-label">Level 1</span>
+        </div>
+      </div>
+    </div>
+    <div class="menu-half">
+      <div class="menu-cell-label">Rules</div>
+      <div class="rules-list">
+        <div class="rule-row"><span class="rule-icon">⚔️</span><span class="rule-text">No hacking</span></div>
+        <div class="rule-row"><span class="rule-icon">🎟️</span><span class="rule-text">No abusing bonus codes</span></div>
+        <div class="rule-row"><span class="rule-icon">🚫</span><span class="rule-text">No distributing</span></div>
+      </div>
+    </div>
+    <div class="menu-half label-top">
+      <div class="menu-cell-label">Bonus Codes &amp; Boosts</div>
+      <div id="boost-card">
+        <div id="boost-top">
+          <span id="boost-level-label">Level 0</span>
+          <span id="boost-badge">+0% XP</span>
+        </div>
+        <div id="boost-desc">Your current level grants you <span id="boost-pct">0%</span> bonus experience on all XP earned.</div>
+        <div id="premium-boost-desc" style="font-size:11px;color:rgba(255,255,255,0.35);line-height:1.4;margin-top:4px;"></div>
+      </div>
+      <div id="code-card">
+        <div id="code-top">
+          <span id="code-title">Bonus Code</span>
+          <span id="code-active-badge" style="display:none">Active</span>
+        </div>
+        <div id="code-active-info" style="display:none">
+          <span id="code-active-name"></span>
+          <span id="code-active-pct"></span>
+        </div>
+        <div id="code-form-row">
+          <input id="code-input" type="text" maxlength="24" placeholder="Enter code..." spellcheck="false" autocomplete="off" />
+          <button id="code-submit-btn">Apply</button>
+        </div>
+        <div id="code-msg"></div>
+        <div id="code-hint">Bonus codes are available on special occasions. Keep an eye out!</div>
+      </div>
+    </div>
+  </div>
+  <div id="shop-panel">
+    <div id="shop-icon">🛒</div>
+    <div id="shop-label">Shop</div>
+  </div>
+  </div>
+</div>
+<!-- Shop overlay -->
+<div id="shop-blur">
+  <div id="shop-modal">
+
+    <!-- Sidebar nav -->
+    <div id="shop-sidebar">
+      <div id="shop-sidebar-title">Shop</div>
+      <div class="shop-nav-item active" data-tab="premium">
+        <span class="nav-icon">⭐</span> Premium
+      </div>
+      <div class="shop-nav-item" data-tab="skins">
+        <span class="nav-icon">🎨</span> Skins
+      </div>
+      <div class="shop-nav-item" data-tab="trails">
+        <span class="nav-icon">✨</span> Trails
+      </div>
+      <div id="shop-sidebar-footer">
+        <div id="shop-ep-label">Balance<br><span id="shop-ep-amount">0</span> EP</div>
+      </div>
+    </div>
+
+    <!-- Main content area -->
+    <div id="shop-main">
+      <button id="shop-close-btn">✕</button>
+
+      <!-- ── PREMIUM tab ── -->
+      <div class="shop-tab active" id="tab-premium">
+        <div class="shop-tab-header">
+          <div class="shop-tab-title">⭐ Premium</div>
+          <div class="shop-tab-subtitle">Supercharge your account with exclusive benefits while active</div>
+        </div>
+
+        <!-- Perks hero -->
+        <div id="premium-hero">
+          <div id="premium-hero-icon">👑</div>
+          <div id="premium-hero-body">
+            <div id="premium-hero-title">What you get</div>
+            <div id="premium-hero-perks">
+              <span class="perk-chip">⚡ +30% XP Boost</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active banner (shown when premium is running) -->
+        <div id="premium-active-banner">
+          <div id="premium-banner-icon">✅</div>
+          <div id="premium-banner-text">
+            <div id="premium-banner-label">Premium Active</div>
+            <div id="premium-expiry-text"></div>
+          </div>
+        </div>
+
+        <!-- No-stacking warning (shown when active) -->
+        <div id="premium-no-stack-notice">
+          <span>🚫</span>
+          You already have an active Premium. You must wait for it to expire before purchasing another.
+        </div>
+
+        <!-- Tier cards -->
+        <div id="premium-tiers">
+          <div class="premium-tier" data-days="1" data-cost="50">
+            <div class="premium-tier-icon">🕐</div>
+            <div class="premium-tier-duration">1 Day</div>
+            <div class="premium-tier-cost">50 EP</div>
+            <div class="premium-tier-desc">+30% XP Boost</div>
+          </div>
+          <div class="premium-tier" data-days="3" data-cost="100">
+            <div class="premium-tier-icon">📅</div>
+            <div class="premium-tier-duration">3 Days</div>
+            <div class="premium-tier-cost">100 EP</div>
+            <div class="premium-tier-desc">+30% XP Boost</div>
+          </div>
+          <div class="premium-tier best-value" data-days="7" data-cost="300">
+            <div class="premium-tier-icon">🗓️</div>
+            <div class="premium-tier-duration">7 Days</div>
+            <div class="premium-tier-cost">300 EP</div>
+            <div class="premium-tier-desc">+30% XP Boost</div>
+          </div>
+          <div class="premium-tier" data-days="30" data-cost="1000">
+            <div class="premium-tier-icon">💎</div>
+            <div class="premium-tier-duration">30 Days</div>
+            <div class="premium-tier-cost">1,000 EP</div>
+            <div class="premium-tier-desc">+30% XP Boost</div>
+          </div>
+        </div>
+
+        <div id="premium-msg"></div>
+        <div id="premium-status-label"></div>
+      </div>
+
+      <!-- ── SKINS tab (coming soon) ── -->
+      <div class="shop-tab" id="tab-skins">
+        <div class="shop-tab-header">
+          <div class="shop-tab-title">🎨 Skins</div>
+          <div class="shop-tab-subtitle">Customize the appearance of your circle</div>
+        </div>
+        <div id="tab-coming-soon">
+          <div class="cs-icon">🚧</div>
+          <div class="cs-title">Coming Soon</div>
+          <div class="cs-sub">Skins are being worked on — check back later!</div>
+        </div>
+      </div>
+
+      <!-- ── TRAILS tab (coming soon) ── -->
+      <div class="shop-tab" id="tab-trails">
+        <div class="shop-tab-header">
+          <div class="shop-tab-title">✨ Trails</div>
+          <div class="shop-tab-subtitle">Leave a trail as you move through the arena</div>
+        </div>
+        <div id="tab-coming-soon" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:10px;color:rgba(255,255,255,0.18);padding:40px;text-align:center;">
+          <div class="cs-icon">🚧</div>
+          <div class="cs-title">Coming Soon</div>
+          <div class="cs-sub">Trails are in development — stay tuned!</div>
+        </div>
+      </div>
+
+    </div><!-- end #shop-main -->
+  </div><!-- end #shop-modal -->
+</div><!-- end #shop-blur -->
+
+<div id="menu-footer">© tgcplayz4220 // v2026.10.24</div>
+
+<!-- Death dim overlay -->
+<div id="death-dim"></div>
+
+<div id="ui">
+  <div id="rank-display">
+    <span id="rank-dot"></span>
+    <span id="rank-text">Red · Level 1</span>
+  </div>
+  <div id="xp-bar-wrap"><div id="xp-bar"></div></div>
+  <div id="xp-row">
+    <span id="xp-current">0 XP</span>
+    <span id="xp-next">Next: 10 xp</span>
+  </div>
+  <hr id="divider">
+  <div id="score-display">Circles eaten: 0</div>
+  <div id="bonus-display" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:3px;">Bonus: +0%</div>
+  <button id="ingame-back-btn">← Menu</button>
+</div>
+
+<div id="death-screen">
+  <div id="death-card">
+    <div id="death-icon">💀</div>
+    <h2>You were eaten!</h2>
+    <p id="death-rank">You reached: Red Lv.1</p>
+    <div id="death-btns">
+      <button id="restart-btn">Play Again</button>
+      <button id="menu-btn">Back to Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Anti-cheat overlay -->
+<div id="ac-overlay">
+  <div id="ac-card">
+    <div id="ac-icon">⚠️</div>
+    <div id="ac-title">Warning</div>
+    <div id="ac-body"></div>
+    <button id="ac-dismiss-btn" style="display:none">I Understand</button>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+<div id="controls-hint">WASD to move</div>
+<div id="fps-counter">FPS: --</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+// ── Full-screen canvas ────────────────────────────────────────────────
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Premium (declared early so nothing references it before init) ─────
+const PREMIUM_BOOST = 30;
+let premiumExpiry = null;
+try {
+  const saved = localStorage.getItem('premiumExpiry');
+  if (saved) {
+    if (!acVerify('premiumExpiry', saved)) {
+      localStorage.removeItem('premiumExpiry');
+      acFlag('save_tamper:premiumExpiry');
+    } else {
+      const d = new Date(saved);
+      if (d > new Date()) premiumExpiry = d;
+      else localStorage.removeItem('premiumExpiry');
+    }
+  }
+} catch(e) {}
+
+function isPremiumActive() {
+  if (!premiumExpiry) return false;
+  if (new Date() >= premiumExpiry) { premiumExpiry = null; localStorage.removeItem('premiumExpiry'); return false; }
+  return true;
+}
+function premiumBoostPct() { return isPremiumActive() ? PREMIUM_BOOST : 0; }
+function savePremium() {
+  try {
+    if (premiumExpiry) {
+      const iso = premiumExpiry.toISOString();
+      localStorage.setItem('premiumExpiry', iso);
+      acWriteSig('premiumExpiry', iso);
+    } else {
+      localStorage.removeItem('premiumExpiry');
+      localStorage.removeItem('_s_premiumExpiry');
+    }
+  } catch(e) {}
+}
+
+// ── Anti-Cheat v2 ─────────────────────────────────────────────────────
+
+// Salt assembled from char codes — not a plain string literal, so a simple
+// text search or copy-paste from the Sources panel won't find it.
+const _ACS = [99,101,95,97,99,95,50,48,50,54,95,120,57,102]
+  .map(c => String.fromCharCode(c)).join('');
+
+// FNV-1a 32-bit hash (same fast core)
+function acHash(s) {
+  let h = 0x811c9dc5 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+// Two-pass sign: inner hash mixes salt + key + value;
+// outer hash re-mixes the result with the salt again.
+// Resigning a tampered value requires knowing _ACS, which is no longer
+// a visible string anywhere in the source.
+function acSign(key, val) {
+  const inner = acHash(_ACS + '\x00' + key + '\x00' + String(val));
+  return acHash(inner + '\x00' + _ACS);
+}
+
+// Derive an opaque localStorage key for each signature so the names
+// "_s_evoPoints", "_ac_ban" etc. are no longer obvious targets to delete.
+function _sk(k) { return '_' + acHash(_ACS + ':' + k).slice(0, 9); }
+
+function acWriteSig(key, val) {
+  try { localStorage.setItem(_sk(key), acSign(key, val)); } catch(e) {}
+}
+
+// Returns true (ok / first-run migration), false (tampered)
+function acVerify(key, raw) {
+  try {
+    const stored = localStorage.getItem(_sk(key));
+    if (!stored) { acWriteSig(key, raw); return true; }  // first run — sign and trust
+    return stored === acSign(key, raw);
+  } catch(e) { return true; }
+}
+
+// Strike / ban state — stored under opaque key names
+const _K_STRIKES = _sk('__ac_st');
+const _K_BAN     = _sk('__ac_ban');
+
+let acStrikes = 0;
+let acBanExpiry = null;
+try {
+  acStrikes = parseInt(localStorage.getItem(_K_STRIKES) || '0') || 0;
+  const b = localStorage.getItem(_K_BAN);
+  if (b) {
+    const d = new Date(b);
+    if (d > new Date()) acBanExpiry = d;
+    else localStorage.removeItem(_K_BAN);
+  }
+} catch(e) {}
+
+function acIsBanned() {
+  if (!acBanExpiry) return false;
+  if (new Date() >= acBanExpiry) {
+    acBanExpiry = null;
+    try { localStorage.removeItem('_ac_ban'); } catch(e) {}
+    return false;
+  }
+  return true;
+}
+
+function acShowWarning(msg) {
+  const ov = document.getElementById('ac-overlay');
+  document.getElementById('ac-icon').textContent    = '⚠️';
+  document.getElementById('ac-title').textContent   = 'Warning';
+  document.getElementById('ac-body').innerHTML      = msg;
+  document.getElementById('ac-dismiss-btn').style.display = 'inline-block';
+  ov.className = 'ac-visible ac-warning';
+}
+function acShowBan() {
+  const ov = document.getElementById('ac-overlay');
+  document.getElementById('ac-icon').textContent  = '🚫';
+  document.getElementById('ac-title').textContent = 'You\'ve Been Banned';
+  const until = acBanExpiry
+    ? acBanExpiry.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+    : '24 hours from now';
+  document.getElementById('ac-body').innerHTML =
+    `Unauthorized modification of game data was detected.<br><br>` +
+    `<strong>Your ban expires: ${until}</strong>`;
+  document.getElementById('ac-dismiss-btn').style.display = 'none';
+  ov.className = 'ac-visible ac-ban';
+  if (typeof player !== 'undefined') player.alive = false;
+}
+
+document.getElementById('ac-dismiss-btn').addEventListener('click', () => {
+  document.getElementById('ac-overlay').className = '';
+});
+
+function acFlag(reason) {
+  acStrikes++;
+  try { localStorage.setItem(_K_STRIKES, acStrikes); } catch(e) {}
+  if (acStrikes >= 2) {
+    acBanExpiry = new Date(Date.now() + 86400000); // 24 hours
+    try { localStorage.setItem(_K_BAN, acBanExpiry.toISOString()); } catch(e) {}
+    acShowBan();
+  } else {
+    acShowWarning(
+      `Unexpected change to protected game data was detected.<br><br>` +
+      `<strong>This is warning ${acStrikes} of 2.</strong> A second detection will result ` +
+      `in a <strong>24-hour ban</strong> from playing.`
+    );
+  }
+}
+
+// Runtime delta snapshot — checked every 3 s via game loop
+let acSnap = null;
+let acSnapTimer = 0;
+
+function acTakeSnap() {
+  acSnap = {
+    ep:    evoPoints,
+    kills: totalBotKills,
+    lvl:   playerLevel,
+    rank:  player ? player.rankIdx : 0,
+    xp:    player ? player.xp      : 0
+  };
+}
+
+function acTick(dt) {
+  if (!gameStarted) return;
+  acSnapTimer += dt;
+  if (acSnapTimer < 180) return; // ~3 seconds at 60fps
+  acSnapTimer = 0;
+
+  if (!acSnap) { acTakeSnap(); return; }
+  const s = acSnap;
+  const ep    = evoPoints,       kills = totalBotKills;
+  const lvl   = playerLevel,     rank  = player ? player.rankIdx : 0;
+  const xp    = player ? player.xp : 0;
+
+  // EP gains 1 per rank-up. Allow 12 per 3 s window — a player with large
+  // level-based XP boosts can legitimately sprint through early ranks on a
+  // fresh session, so the old limit of 6 caused false bans in that case.
+  if (ep - s.ep > 12)            { acFlag('ep_spike');   acTakeSnap(); return; }
+  // Kills and rank can only move upward
+  if (kills < s.kills)           { acFlag('kills_drop'); acTakeSnap(); return; }
+  if (rank  < s.rank)            { acFlag('rank_drop');  acTakeSnap(); return; }
+  // Rank spike — raised from 6 to 12 for the same high-boost reason above
+  if (rank - s.rank > 12)        { acFlag('rank_spike'); acTakeSnap(); return; }
+  // XP shouldn't fall while staying on the same rank
+  if (rank === s.rank && xp < s.xp - 5) { acFlag('xp_drop'); acTakeSnap(); return; }
+
+  acTakeSnap();
+}
+
+// ── Username ──────────────────────────────────────────────────────────
+let username = 'Player';
+try {
+  const savedName = localStorage.getItem('username');
+  if (savedName) {
+    username = savedName;
+    document.getElementById('username-input').value = savedName;
+  }
+} catch(e) {}
+
+// Hide game UI until play is pressed
+document.getElementById('ui').style.display           = 'none';
+document.getElementById('controls-hint').style.display = 'none';
+
+// Show ban screen immediately if still banned from a prior session
+if (acIsBanned()) acShowBan();
+
+// Play button
+document.getElementById('play-btn').onclick = () => {
+  if (acIsBanned()) { acShowBan(); return; }
+  const val = document.getElementById('username-input').value.trim();
+  username = val.length > 0 ? val : 'Player';
+  try { localStorage.setItem('username', username); } catch(e) {}
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+  } catch(e) {}
+  document.getElementById('main-menu').style.display  = 'none';
+  document.getElementById('menu-footer').style.display = 'none';
+  document.getElementById('ui').style.display         = 'block';
+  document.getElementById('controls-hint').style.display = 'block';
+  document.getElementById('fps-counter').style.display = 'block';
+  startGame();
+};
+// Also allow Enter key
+document.getElementById('username-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('play-btn').click();
+});
+
+// ── Constants ─────────────────────────────────────────────────────────
+const WORLD    = 2400;
+const WHITE_CAP = 160;
+const BOT_CAP   = 22;
+const CIRCLE_R  = 22;   // fixed radius — no growing
+
+// ── Rank system ───────────────────────────────────────────────────────
+const COLORS    = ['Red', 'Orange', 'Yellow', 'Green', 'Blue'];
+const COLOR_HEX = { Red: '#e84040', Orange: '#f5820a', Yellow: '#e8c820', Green: '#3ccc50', Blue: '#378add' };
+
+// Denominator for eat-XP formula per color tier (x / denom)
+// Higher = less XP per bot eaten. Yellow+ tuned so ~2 kills needed per level-up.
+const EAT_DENOM = [2, 3, 8, 10, 12]; // Red, Orange, Yellow, Green, Blue
+
+// XP thresholds — corrected to spec
+const XP_TABLE = [
+  // Red (idx 0-8) — smoothed gaps, ends at 500
+  0, 18, 54, 104, 165, 236, 316, 404, 500,
+  // Orange (idx 9-17) — gaps increase by 25 each level (325 → 500)
+  750, 1075, 1425, 1800, 2200, 2625, 3075, 3550, 4050,
+  // Yellow (idx 18-26) — gaps ×1.75
+  5000, 6750, 8500, 10250, 13750, 17250, 20750, 24250, 31250,
+  // Green (idx 27-35) — gaps ×2.0, base +17,500
+  42500, 47500, 52500, 58500, 64500, 70500, 76500, 84500, 92500,
+  // Blue (idx 36-44) — final class; starts at Green L9 end (102,500) + 25,000
+  127500, 137500, 150000, 165000, 185000, 205000, 225000, 250000, 275000,
+];
+const MAX_RANK = XP_TABLE.length - 1; // 44 (Blue L9)
+
+const CLASS_START = [0, 9, 18, 27, 36]; // start index of each color class
+function rankFromIndex(idx) {
+  let colorIdx = 0;
+  for (let i = CLASS_START.length - 1; i >= 0; i--) {
+    if (idx >= CLASS_START[i]) { colorIdx = i; break; }
+  }
+  return { colorIdx, level: idx - CLASS_START[colorIdx] + 1 };
+}
+function rankLabel(idx) {
+  const r = rankFromIndex(idx);
+  return `${COLORS[r.colorIdx]} Lv.${r.level}`;
+}
+function rankColor(idx) {
+  return COLOR_HEX[COLORS[rankFromIndex(idx).colorIdx]];
+}
+// XP earned per white circle = global rankIdx + 1 (never resets)
+function xpPerWhite(rankIdx) { return rankIdx + 1; }
+// XP earned eating a bot = floor(botXp / denom), denom by color tier
+function xpFromEat(botXp, eaterRankIdx) {
+  const denom = EAT_DENOM[rankFromIndex(eaterRankIdx).colorIdx];
+  return Math.round(botXp / denom);
+}
+
+// ── Speed helpers ─────────────────────────────────────────────────────
+// Speeds are in px/frame at 60 fps; delta-time scaling keeps them
+// frame-rate independent without changing the actual feel.
+function playerSpeed(rankIdx) {
+  if (rankIdx < 18) return 3.5;
+  const t = (rankIdx - 18) / (44 - 18);
+  return Math.max(2.4, 3.5 - t * 1.1);
+}
+function botSpeed(botRankIdx) {
+  const t = Math.min(1, botRankIdx / 44);
+  return 1.5 + t * 1.0;
+}
+
+// ── Player ────────────────────────────────────────────────────────────
+let player = {};
+function initPlayer() {
+  player = {
+    x: WORLD / 2, y: WORLD / 2,
+    xp: 0, rankIdx: 0,
+    radius: CIRCLE_R,
+    eaten: 0,
+    alive: true
+  };
+}
+initPlayer();
+
+function playerXpProgress() {
+  if (player.rankIdx >= MAX_RANK) return 1;
+  const floor = XP_TABLE[player.rankIdx];
+  const next  = XP_TABLE[player.rankIdx + 1];
+  return (player.xp - floor) / (next - floor);
+}
+
+// ── EvoPoints ─────────────────────────────────────────────────────────
+let evoPoints = 0;
+try {
+  const _raw = localStorage.getItem('evoPoints') || '0';
+  evoPoints = parseInt(_raw, 10) || 0;
+  if (!acVerify('evoPoints', _raw)) { evoPoints = 0; acFlag('save_tamper:evoPoints'); }
+} catch(e) {}
+function saveEvoPoints() {
+  try { localStorage.setItem('evoPoints', evoPoints); acWriteSig('evoPoints', evoPoints); } catch(e) {}
+}
+function updateEvoPointsDisplay() {
+  document.getElementById('ep-amount').textContent = evoPoints.toLocaleString('en-US');
+}
+updateEvoPointsDisplay();
+
+// ── Player Level system (persistent, kill-based) ──────────────────────
+const KILLS_PER_LEVEL = 20;
+let playerLevel = 0;
+let totalBotKills = 0; // cumulative kills ever
+try {
+  const _rawL = localStorage.getItem('playerLevel') || '0';
+  playerLevel = parseInt(_rawL, 10) || 0;
+  if (!acVerify('playerLevel', _rawL)) { playerLevel = 0; acFlag('save_tamper:playerLevel'); }
+} catch(e) {}
+try {
+  const _rawK = localStorage.getItem('totalBotKills') || '0';
+  totalBotKills = parseInt(_rawK, 10) || 0;
+  if (!acVerify('totalBotKills', _rawK)) { totalBotKills = 0; acFlag('save_tamper:totalBotKills'); }
+} catch(e) {}
+
+// Cross-validate kills ↔ level: playerLevel must always equal
+// floor(totalBotKills / KILLS_PER_LEVEL). A discrepancy > 2 means
+// one value was tampered independently (tolerance of 2 covers a rare
+// crash between the two localStorage.setItem calls in savePlayerLevel).
+{
+  const _expectedLevel = Math.floor(totalBotKills / KILLS_PER_LEVEL);
+  if (Math.abs(playerLevel - _expectedLevel) > 2) {
+    playerLevel = _expectedLevel; // correct it before the game starts
+    acFlag('save_tamper:level_kills_inconsistency');
+  }
+}
+
+function killsForLevel(lvl) { return lvl * KILLS_PER_LEVEL; }
+function killsForNextLevel(lvl) { return (lvl + 1) * KILLS_PER_LEVEL; }
+
+function savePlayerLevel() {
+  // Write kills first: if the page crashes between the two writes, kills
+  // will be ahead of level by at most 1 — within the cross-validation
+  // tolerance. Writing level first would leave level ahead of kills,
+  // which is the tampered direction and would incorrectly trigger a flag.
+  try { localStorage.setItem('totalBotKills', totalBotKills); acWriteSig('totalBotKills', totalBotKills); } catch(e) {}
+  try { localStorage.setItem('playerLevel',   playerLevel);   acWriteSig('playerLevel',   playerLevel);   } catch(e) {}
+}
+
+function onBotKill() {
+  totalBotKills++;
+  // Check if we've crossed into a new level
+  while (totalBotKills >= killsForNextLevel(playerLevel)) {
+    playerLevel++;
+  }
+  savePlayerLevel();
+  updateLevelDisplay();
+}
+
+function updateLevelDisplay() {
+  const killsThisLevel = totalBotKills - killsForLevel(playerLevel);
+  const pct            = Math.min(1, killsThisLevel / KILLS_PER_LEVEL) * 100;
+  const pctRounded     = Math.floor(pct);
+
+  document.getElementById('level-num').textContent        = playerLevel.toLocaleString('en-US');
+  document.getElementById('level-kills-text').textContent = `${totalBotKills.toLocaleString('en-US')} / ${killsForNextLevel(playerLevel).toLocaleString('en-US')} kills`;
+  document.getElementById('level-next-label').textContent = `Level ${(playerLevel + 1).toLocaleString('en-US')}`;
+  document.getElementById('level-bar').style.width        = pct + '%';
+  document.getElementById('level-pct-label').textContent  = `${pctRounded}% Complete`;
+  updateBoostCard();
+}
+updateLevelDisplay();
+
+
+
+
+// ── Bonus codes ───────────────────────────────────────────────────────
+const BONUS_CODES = {
+  'HALLOWEEN2026': { boost: 30, expires: new Date('2026-11-04T23:59:59') }
+};
+
+let activeBonusCode  = null;
+let bonusCodeBoostPct = 0;
+try {
+  const saved = localStorage.getItem('activeBonusCode');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    const entry  = BONUS_CODES[parsed.code];
+    // Re-validate: code still exists and hasn't expired
+    if (entry && new Date() < entry.expires) {
+      activeBonusCode   = parsed.code;
+      bonusCodeBoostPct = entry.boost;
+    } else {
+      localStorage.removeItem('activeBonusCode');
+    }
+  }
+} catch(e) {}
+
+function saveBonusCode() {
+  try {
+    if (activeBonusCode) {
+      localStorage.setItem('activeBonusCode', JSON.stringify({ code: activeBonusCode }));
+    } else {
+      localStorage.removeItem('activeBonusCode');
+    }
+  } catch(e) {}
+}
+
+function updateCodeCard() {
+  const badge    = document.getElementById('code-active-badge');
+  const infoRow  = document.getElementById('code-active-info');
+  const nameEl   = document.getElementById('code-active-name');
+  const pctEl    = document.getElementById('code-active-pct');
+  const btn      = document.getElementById('code-submit-btn');
+  if (activeBonusCode) {
+    badge.style.display        = 'inline-block';
+    infoRow.style.display      = 'flex';
+    const expiry = BONUS_CODES[activeBonusCode]?.expires;
+    const expStr = expiry ? ` (exp. ${expiry.toISOString().slice(0,10)})` : '';
+    nameEl.textContent         = activeBonusCode + expStr;
+    pctEl.textContent          = `+${bonusCodeBoostPct.toLocaleString('en-US')}% XP`;
+    btn.textContent            = 'Revert';
+    btn.style.background       = '#e84040';
+    btn.style.color            = '#fff';
+  } else {
+    badge.style.display        = 'none';
+    infoRow.style.display      = 'none';
+    btn.textContent            = 'Apply';
+    btn.style.background       = '#e8c820';
+    btn.style.color            = '#1a1a1a';
+  }
+}
+updateCodeCard();
+
+document.getElementById('code-submit-btn').addEventListener('click', () => {
+  const input   = document.getElementById('code-input');
+  const msgEl   = document.getElementById('code-msg');
+
+  // If a code is active, this is a Revert press
+  if (activeBonusCode) {
+    activeBonusCode   = null;
+    bonusCodeBoostPct = 0;
+    saveBonusCode();
+    updateCodeCard();
+    input.value         = '';
+    msgEl.style.color   = '#e8c820';
+    msgEl.textContent   = 'Bonus code removed.';
+    setTimeout(() => msgEl.textContent = '', 3000);
+    return;
+  }
+
+  const code = input.value.trim().toUpperCase();
+  input.value = '';
+  if (!code) return;
+
+  const entry = BONUS_CODES[code];
+  if (!entry) {
+    msgEl.style.color   = '#ff4444';
+    msgEl.textContent   = 'Invalid code.';
+    setTimeout(() => msgEl.textContent = '', 3000);
+    return;
+  }
+  if (new Date() >= entry.expires) {
+    msgEl.style.color   = '#ff4444';
+    msgEl.textContent   = 'This code has expired.';
+    setTimeout(() => msgEl.textContent = '', 3000);
+    return;
+  }
+  activeBonusCode   = code;
+  bonusCodeBoostPct = entry.boost;
+  saveBonusCode();
+  updateCodeCard();
+  msgEl.style.color   = '#3ccc50';
+  msgEl.textContent   = `+${entry.boost.toLocaleString('en-US')}% XP boost activated!`;
+  setTimeout(() => msgEl.textContent = '', 4000);
+});
+
+document.getElementById('code-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('code-submit-btn').click();
+});
+
+function levelBoostPct() { return playerLevel * 10; }
+
+function updatePremiumBoostDesc() {
+  const el = document.getElementById('premium-boost-desc');
+  if (!el) return;
+
+  if (isPremiumActive()) {
+    el.textContent = 'Premium subscription: 30% bonus';
+    el.style.color = '#e8c820';
+  } else {
+    el.textContent = 'Premium subscription: 0% bonus';
+    el.style.color = 'rgba(255,255,255,0.35)';
+  }
+}
+
+function updateBoostCard() {
+  const pct = levelBoostPct();
+  document.getElementById('boost-level-label').textContent = `Level ${playerLevel.toLocaleString('en-US')}`;
+  document.getElementById('boost-badge').textContent       = `+${pct.toLocaleString('en-US')}% XP`;
+  document.getElementById('boost-pct').textContent         = `${pct.toLocaleString('en-US')}%`;
+  updatePremiumBoostDesc();
+}
+updateBoostCard();
+
+let levelUpFlash = 0;
+function gainXP(amount) {
+  const totalBoostPct = levelBoostPct() + bonusCodeBoostPct + premiumBoostPct();
+  const boosted = Math.max(1, Math.round(amount * (1 + totalBoostPct / 100)));
+  if (player.rankIdx >= MAX_RANK) return;
+  const cap = XP_TABLE[player.rankIdx + 1]; // XP threshold for next rank
+  player.xp = Math.min(player.xp + boosted, cap); // never exceed next rank threshold
+  if (player.xp >= cap) {
+    player.rankIdx++;
+    levelUpFlash = 60;
+    evoPoints++;
+    saveEvoPoints();
+    // Do NOT carry overflow — XP stays exactly at the new rank's floor
+    player.xp = XP_TABLE[player.rankIdx];
+  }
+}
+
+// ── Input ─────────────────────────────────────────────────────────────
+const keys = {};
+const MOVEMENT_KEYS = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  // Only block default for movement keys, and only while playing
+  if (MOVEMENT_KEYS.has(k) && player.alive && document.getElementById('main-menu').style.display === 'none') {
+    e.preventDefault();
+  }
+});
+document.addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+
+// ── Food ──────────────────────────────────────────────────────────────
+let food = [];
+function spawnFood() {
+  food.push({
+    x: Math.random() * (WORLD - 40) + 20,
+    y: Math.random() * (WORLD - 40) + 20,
+    r: 7
+  });
+}
+// ── Start game ────────────────────────────────────────────────────────
+let gameStarted = false;
+function startGame() {
+  // Fix 1: cancel any pending death popup from a previous game
+  if (deathTimeoutId !== null) { clearTimeout(deathTimeoutId); deathTimeoutId = null; }
+  food = []; bots = []; particles = [];
+  fpsAccum = 0; fpsFrameCount = 0; fpsDisplay = 0;
+  fpsEl.textContent = 'FPS: --';
+  initPlayer();
+  for (let i = 0; i < WHITE_CAP; i++) spawnFood();
+  for (let i = 0; i < BOT_CAP;   i++) spawnBot();
+  lastMaintain = performance.now(); // reset so maintenance doesn't fire on tick 1
+  lastTs = 0; // reset delta-time on new game
+  gameStarted = true;
+}
+
+// ── Bots ──────────────────────────────────────────────────────────────
+let bots = [];
+function spawnBot() {
+  const pRank = player.rankIdx;
+  let botRank;
+  // Red L1 has no prey, so always spawn same/predator if pRank==0
+  if (pRank === 0) {
+    botRank = Math.random() < 0.5 ? 0 : Math.min(MAX_RANK, 1 + Math.floor(Math.random() * 3));
+  } else {
+    const roll = Math.random();
+    if (roll < 0.50) {
+      // prey: up to 5 ranks below, at least 1 below
+      botRank = Math.max(0, pRank - 1 - Math.floor(Math.random() * Math.min(pRank, 5)));
+    } else if (roll < 0.70) {
+      // same: ±1
+      botRank = Math.max(0, Math.min(MAX_RANK, pRank + Math.floor(Math.random() * 3) - 1));
+    } else {
+      // predator: 1–4 above
+      botRank = Math.min(MAX_RANK, pRank + 1 + Math.floor(Math.random() * 4));
+    }
+  }
+
+  // Spawn safely away from player (min 400px)
+  let bx, by, attempts = 0;
+  do {
+    bx = Math.random() * (WORLD - 40) + 20;
+    by = Math.random() * (WORLD - 40) + 20;
+    attempts++;
+  } while (attempts < 30 && Math.hypot(bx - player.x, by - player.y) < 400);
+
+  bots.push({
+    x: bx, y: by,
+    rankIdx: botRank,
+    xp: botRank < MAX_RANK                                      // Fix 3: don't exceed table ceiling for max-rank bots
+      ? XP_TABLE[botRank] + Math.floor(Math.random() * 50)
+      : XP_TABLE[botRank],
+    radius: CIRCLE_R,
+    alive: true,
+    vx: (Math.random() - 0.5) * 2,
+    vy: (Math.random() - 0.5) * 2,
+    changeDir: 0,
+    target: null,
+    name: 'Bot ' + (1 + Math.floor(Math.random() * 99))
+  });
+}
+
+// ── Camera ────────────────────────────────────────────────────────────
+let cam = { x: 0, y: 0 };
+function updateCam() {
+  cam.x = Math.max(0, Math.min(WORLD - canvas.width,  player.x - canvas.width  / 2));
+  cam.y = Math.max(0, Math.min(WORLD - canvas.height, player.y - canvas.height / 2));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function dist(a, b)    { return Math.hypot(a.x - b.x, a.y - b.y); }
+function overlap(a, b) { return dist(a, b) < a.radius + b.radius - 4; }
+
+// ── Bot XP (no rank skipping) ─────────────────────────────────────────
+function botGainXP(bot, amount) {
+  if (bot.rankIdx >= MAX_RANK) return;
+  const cap = XP_TABLE[bot.rankIdx + 1];
+  bot.xp = Math.min(bot.xp + amount, cap);
+  if (bot.xp >= cap) {
+    bot.rankIdx++;
+    bot.xp = XP_TABLE[bot.rankIdx];
+  }
+}
+
+// ── Bot AI ────────────────────────────────────────────────────────────
+// dt: delta-time ratio (1.0 = perfect 60fps frame)
+function updateBot(bot, dt) {
+  bot.changeDir -= dt;
+  if (bot.changeDir <= 0) {
+    bot.changeDir = 60 + Math.floor(Math.random() * 120);
+    let closest = null, closestD = 9999;
+
+    for (const other of bots) {
+      if (other === bot || !other.alive) continue;
+      if (other.rankIdx < bot.rankIdx) {
+        const d = dist(bot, other);
+        if (d < 300 && d < closestD) { closest = other; closestD = d; }
+      }
+    }
+    if (!closest && player.alive && player.rankIdx < bot.rankIdx && dist(bot, player) < 350) {
+      closest = player;
+    }
+    if (closest) {
+      bot.target = closest;
+    } else {
+      bot.target = null;
+      const spd = botSpeed(bot.rankIdx);
+      bot.vx = (Math.random() - 0.5) * spd * 2;
+      bot.vy = (Math.random() - 0.5) * spd * 2;
+    }
+  }
+
+  const spd = botSpeed(bot.rankIdx);
+  if (bot.target && bot.target.alive !== false) {
+    const dx = bot.target.x - bot.x, dy = bot.target.y - bot.y;
+    const d  = Math.hypot(dx, dy) || 1;
+    bot.vx = (dx / d) * spd;
+    bot.vy = (dy / d) * spd;
+  }
+
+  if (!bot.target) {
+    let cf = null, cfD = 9999;
+    for (const f of food) {
+      const d = dist(bot, f);
+      if (d < 200 && d < cfD) { cf = f; cfD = d; }
+    }
+    if (cf) {
+      const dx = cf.x - bot.x, dy = cf.y - bot.y;
+      const d  = Math.hypot(dx, dy) || 1;
+      bot.vx = (dx / d) * spd;
+      bot.vy = (dy / d) * spd;
+    }
+  }
+
+  // Apply dt so movement is frame-rate independent
+  bot.x = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.x + bot.vx * dt));
+  bot.y = Math.max(bot.radius, Math.min(WORLD - bot.radius, bot.y + bot.vy * dt));
+
+  // Eat food
+  for (let i = food.length - 1; i >= 0; i--) {
+    if (dist(bot, food[i]) < bot.radius + food[i].r - 2) {
+      food.splice(i, 1);
+      botGainXP(bot, xpPerWhite(bot.rankIdx));
+      spawnFood();
+    }
+  }
+
+  // Eat weaker bots
+  for (const other of bots) {
+    if (other === bot || !other.alive) continue;
+    if (bot.rankIdx > other.rankIdx && overlap(bot, other)) {
+      other.alive = false;
+      spawnExplosion(other.x, other.y, rankColor(other.rankIdx), 18);
+      botGainXP(bot, xpFromEat(other.xp, bot.rankIdx));
+    }
+  }
+}
+
+// ── Player update ─────────────────────────────────────────────────────
+// dt: delta-time ratio (1.0 = perfect 60fps frame)
+function updatePlayer(dt) {
+  if (!player.alive) return;
+  const spd = playerSpeed(player.rankIdx) * dt;
+  if (keys['w'] || keys['arrowup'])    player.y -= spd;
+  if (keys['s'] || keys['arrowdown'])  player.y += spd;
+  if (keys['a'] || keys['arrowleft'])  player.x -= spd;
+  if (keys['d'] || keys['arrowright']) player.x += spd;
+  player.x = Math.max(player.radius, Math.min(WORLD - player.radius, player.x));
+  player.y = Math.max(player.radius, Math.min(WORLD - player.radius, player.y));
+
+  // Eat food
+  for (let i = food.length - 1; i >= 0; i--) {
+    if (dist(player, food[i]) < player.radius + food[i].r - 2) {
+      food.splice(i, 1);
+      gainXP(xpPerWhite(player.rankIdx));
+      player.eaten++;
+      spawnFood();
+    }
+  }
+
+  // Eat bots / be eaten
+  for (const bot of bots) {
+    if (!bot.alive) continue;
+    if (!overlap(player, bot)) continue;
+    if (player.rankIdx > bot.rankIdx) {
+      bot.alive = false;
+      spawnExplosion(bot.x, bot.y, rankColor(bot.rankIdx), 18);
+      gainXP(xpFromEat(bot.xp, player.rankIdx));
+      player.eaten++;
+      onBotKill();
+    } else if (bot.rankIdx > player.rankIdx) {
+      player.alive = false;
+      spawnExplosion(player.x, player.y, rankColor(player.rankIdx));
+      deathTimeoutId = setTimeout(showDeath, 1200);
+      return;
+    }
+  }
+}
+
+// ── Explosion particles ───────────────────────────────────────────────
+// particles is now an array of individual particle objects (all explosions pooled together)
+let particles = [];
+function spawnExplosion(x, y, color, count) {
+  const COUNT = count || 26;
+  for (let i = 0; i < COUNT; i++) {
+    const angle = (Math.PI * 2 / COUNT) * i + (Math.random() - 0.5) * 0.4;
+    const speed = 0.6 + Math.random() * 2.2;
+    const size  = 4 + Math.random() * 7;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size,
+      alpha: 1,
+      color,
+      decay: 0.008 + Math.random() * 0.006
+    });
+  }
+}
+function updateParticles() {
+  for (const p of particles) {
+    p.x     += p.vx;
+    p.y     += p.vy;
+    p.vx    *= 0.96;
+    p.vy    *= 0.96;
+    p.alpha -= p.decay;
+    p.size  *= 0.985;
+  }
+  particles = particles.filter(p => p.alpha > 0);
+}
+function drawParticles() {
+  for (const p of particles) {
+    const sx = p.x - cam.x, sy = p.y - cam.y;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.beginPath();
+    ctx.arc(sx, sy, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Level badge visuals ───────────────────────────────────────────────
+let labelTick = 0; // incremented every frame for animations
+
+function getLevelBadgeStyle(lvl) {
+  if (lvl <= 5)  return { type: 'plain',    color: '#e8e8e8' };
+  if (lvl <= 9)  return { type: 'plain',    color: '#7ec8e3' };
+  if (lvl <= 14) return { type: 'plain',    color: '#ff6666' };
+  if (lvl <= 19) return { type: 'plain',    color: '#dd77ff' };
+  if (lvl <= 29) return { type: 'glow',     color: '#ffffff', glowColor: '#ffffff', glowBlur: 10 };
+  if (lvl <= 39) return { type: 'bw-switch', glowColor: '#ffffff', glowBlur: 12 };
+  if (lvl <= 49) return { type: 'rainbow',   glowColor: '#ffffff', glowBlur: 12 };
+  /* 50+ */      return { type: 'rb-switch',  glowColor: '#ff2222', glowBlur: 14 };
+}
+
+function getRainbowColor(tick, offset) {
+  const hue = ((tick * 0.4) + offset) % 360;
+  return `hsl(${hue},100%,60%)`;
+}
+
+function drawPlayerLabel(sx, sy, lvl, name) {
+  const style    = getLevelBadgeStyle(lvl);
+  const premium  = isPremiumActive();
+  const nameColor = premium ? '#ffed99' : '#fff';
+  const fullText = `[${lvl}] ${name}`;
+  const bracketText = `[${lvl}]`;
+  const nameText = ` ${name}`;
+
+  ctx.save();
+  ctx.font         = 'bold 12px Segoe UI, sans-serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'bottom';
+
+  // Measure parts for split rendering
+  const bracketW = ctx.measureText(bracketText).width;
+  const totalW   = ctx.measureText(fullText).width;
+  const startX   = sx - totalW / 2;
+
+  // ── Plain static color ──
+  if (style.type === 'plain') {
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur  = 4;
+    ctx.fillStyle = style.color;
+    ctx.fillText(bracketText, startX + bracketW / 2, sy);
+    if (premium) {
+      ctx.shadowColor = '#e8c820'; ctx.shadowBlur = 9;
+    }
+    ctx.fillStyle = nameColor;
+    ctx.fillText(nameText, startX + bracketW + ctx.measureText(nameText).width / 2, sy);
+    ctx.restore();
+    return;
+  }
+
+  // ── Glowing white (20-29) ──
+  if (style.type === 'glow') {
+    ctx.shadowColor = style.glowColor;
+    ctx.shadowBlur  = style.glowBlur;
+    ctx.fillStyle   = style.color;
+    ctx.fillText(bracketText, startX + bracketW / 2, sy);
+    if (premium) {
+      ctx.shadowColor = '#e8c820'; ctx.shadowBlur = 9;
+    } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
+    ctx.fillStyle   = nameColor;
+    ctx.fillText(nameText, startX + bracketW + ctx.measureText(nameText).width / 2, sy);
+    ctx.restore();
+    return;
+  }
+
+  // ── Black & white switching with glow (30-39) ──
+  if (style.type === 'bw-switch') {
+    // smooth sine blend: 0 = white, 1 = dark
+    const t = (Math.sin(labelTick / 150) + 1) / 2; // ~15s full cycle
+    const v = Math.round(255 * (1 - t * 0.92)); // 255 → ~20
+    const badgeColor = `rgb(${v},${v},${v})`;
+    ctx.shadowColor = style.glowColor;
+    ctx.shadowBlur  = style.glowBlur;
+    ctx.fillStyle   = badgeColor;
+    ctx.fillText(bracketText, startX + bracketW / 2, sy);
+    if (premium) {
+      ctx.shadowColor = '#e8c820'; ctx.shadowBlur = 9;
+    } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
+    ctx.fillStyle   = nameColor;
+    ctx.fillText(nameText, startX + bracketW + ctx.measureText(nameText).width / 2, sy);
+    ctx.restore();
+    return;
+  }
+
+  // ── Rainbow with glow (40-49) ──
+  if (style.type === 'rainbow') {
+    // Draw each character of bracketText in a different hue
+    ctx.shadowColor = getRainbowColor(labelTick, 0);
+    ctx.shadowBlur  = style.glowBlur;
+    let cx = startX;
+    for (let i = 0; i < bracketText.length; i++) {
+      const ch = bracketText[i];
+      const cw = ctx.measureText(ch).width;
+      ctx.fillStyle = getRainbowColor(labelTick, i * 40);
+      ctx.fillText(ch, cx + cw / 2, sy);
+      cx += cw;
+    }
+    if (premium) {
+      ctx.shadowColor = '#e8c820'; ctx.shadowBlur = 9;
+    } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
+    ctx.fillStyle   = nameColor;
+    ctx.fillText(nameText, startX + bracketW + ctx.measureText(nameText).width / 2, sy);
+    ctx.restore();
+    return;
+  }
+
+  // ── Red & black switching with glow (50+) ──
+  if (style.type === 'rb-switch') {
+    // smooth sine blend: 0 = bright red, 1 = near-black
+    const t = (Math.sin(labelTick / 75) + 1) / 2; // ~7.5s full cycle
+    const r = Math.round(255 * (1 - t * 0.93)); // 255 → ~18
+    const badgeColor = `rgb(${r},0,0)`;
+    ctx.shadowColor = style.glowColor;
+    ctx.shadowBlur  = style.glowBlur;
+    ctx.fillStyle   = badgeColor;
+    ctx.fillText(bracketText, startX + bracketW / 2, sy);
+    if (premium) {
+      ctx.shadowColor = '#e8c820'; ctx.shadowBlur = 9;
+    } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
+    ctx.fillStyle   = nameColor;
+    ctx.fillText(nameText, startX + bracketW + ctx.measureText(nameText).width / 2, sy);
+    ctx.restore();
+    return;
+  }
+
+  ctx.restore();
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────
+function drawCircle(x, y, r, color, label, isPlayer) {
+  const sx = x - cam.x, sy = y - cam.y;
+  if (sx + r < -10 || sx - r > canvas.width  + 10) return;
+  if (sy + r < -10 || sy - r > canvas.height + 10) return;
+
+  ctx.save();
+  if (isPlayer) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur  = levelUpFlash > 0 ? 30 : 10;
+  }
+  ctx.beginPath();
+  ctx.arc(sx, sy, r, 0, Math.PI * 2);
+  ctx.fillStyle   = color;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle    = '#fff';
+  ctx.font         = `bold 13px Segoe UI, sans-serif`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, sx, sy);
+  ctx.restore();
+}
+
+function drawWorld() {
+  ctx.fillStyle = '#888';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth   = 1;
+  const gs = 60;
+  const offX = cam.x % gs, offY = cam.y % gs;
+  for (let x = -offX; x < canvas.width;  x += gs) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = -offY; y < canvas.height; y += gs) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // World border
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth   = 6;
+  ctx.strokeRect(-cam.x, -cam.y, WORLD, WORLD);
+
+  // Food
+  for (const f of food) {
+    const sx = f.x - cam.x, sy = f.y - cam.y;
+    if (sx < -20 || sx > canvas.width + 20 || sy < -20 || sy > canvas.height + 20) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(sx, sy, f.r, 0, Math.PI * 2);
+    ctx.fillStyle   = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur  = 6;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Bots
+  for (const b of bots) {
+    if (!b.alive) continue;
+    drawCircle(b.x, b.y, b.radius, rankColor(b.rankIdx), rankFromIndex(b.rankIdx).level.toString());
+    // Bot name above circle
+    const bsx = b.x - cam.x, bsy = b.y - cam.y;
+    if (bsx + b.radius >= -10 && bsx - b.radius <= canvas.width + 10 &&
+        bsy + b.radius >= -10 && bsy - b.radius <= canvas.height + 10) {
+      ctx.save();
+      ctx.font         = 'bold 11px Segoe UI, sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle    = 'rgba(255,255,255,0.75)';
+      ctx.fillText(b.name, bsx, bsy - b.radius - 4);
+      ctx.restore();
+    }
+  }
+
+  // Particles
+  drawParticles();
+
+  // Player
+  if (player.alive) {
+    drawCircle(player.x, player.y, player.radius, rankColor(player.rankIdx),
+      rankFromIndex(player.rankIdx).level.toString(), true);
+    // Username above circle
+    const sx = player.x - cam.x, sy = player.y - cam.y;
+    drawPlayerLabel(sx, sy - player.radius - 4, playerLevel, username);
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────
+function updateHUD(dt) {
+  const col = rankColor(player.rankIdx);
+  const r   = rankFromIndex(player.rankIdx);
+
+  document.getElementById('rank-text').textContent = `${COLORS[r.colorIdx]}  ·  Level ${r.level.toLocaleString('en-US')}`;
+  document.getElementById('rank-text').style.color  = col;
+  const dot = document.getElementById('rank-dot');
+  dot.style.background = col;
+  dot.style.boxShadow  = `0 0 6px ${col}`;
+
+  const pct = Math.min(1, playerXpProgress()) * 100;
+  document.getElementById('xp-bar').style.width      = pct + '%';
+  document.getElementById('xp-bar').style.background = col;
+
+  const nextThresh = player.rankIdx < MAX_RANK ? XP_TABLE[player.rankIdx + 1] : null;
+  document.getElementById('xp-current').textContent = `${player.xp.toLocaleString('en-US')} XP`;
+  document.getElementById('xp-next').textContent    = nextThresh ? `Next: ${nextThresh.toLocaleString('en-US')} xp` : 'MAX';
+  document.getElementById('score-display').textContent = `Circles eaten: ${player.eaten.toLocaleString('en-US')}`;
+
+  const totalBonus = levelBoostPct() + bonusCodeBoostPct + premiumBoostPct();
+  const bonusEl = document.getElementById('bonus-display');
+  bonusEl.textContent = `Bonus: +${totalBonus.toLocaleString('en-US')}%`;
+  bonusEl.style.color = totalBonus > 0 ? '#3ccc50' : 'rgba(255,255,255,0.5)';
+
+  if (levelUpFlash > 0) {
+    levelUpFlash = Math.max(0, levelUpFlash - dt);
+    ctx.save();
+    ctx.globalAlpha = (levelUpFlash / 60) * 0.22;
+    ctx.fillStyle   = col;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+}
+
+// ── Death screen ──────────────────────────────────────────────────────
+function showDeath() {
+  const dim = document.getElementById('death-dim');
+  dim.style.display = 'block';
+  // Trigger reflow so transition fires
+  void dim.offsetWidth;
+  dim.style.opacity = '0.85';
+  setTimeout(() => {
+    const dr = rankFromIndex(player.rankIdx);
+    document.getElementById('death-rank').textContent = `You reached: ${COLORS[dr.colorIdx]} / Level ${dr.level.toLocaleString('en-US')}`;
+    const card = document.getElementById('death-card');
+    card.style.animation = 'none';
+    void card.offsetWidth; // reflow to restart animation
+    card.style.animation = '';
+    document.getElementById('death-screen').style.display = 'flex';
+  }, 500);
+}
+function hideDeath() {
+  document.getElementById('death-screen').style.display = 'none';
+  const dim = document.getElementById('death-dim');
+  dim.style.opacity = '0';
+  dim.style.display = 'none';
+}
+document.getElementById('restart-btn').onclick = () => {
+  hideDeath();
+  startGame();
+};
+document.getElementById('menu-btn').onclick = () => {
+  // Fix 1: cancel any pending death popup
+  if (deathTimeoutId !== null) { clearTimeout(deathTimeoutId); deathTimeoutId = null; }
+  hideDeath();
+  // Fix 2: stop the game loop from continuing to run in the background
+  gameStarted = false;
+  player.alive = false;
+  document.getElementById('ui').style.display            = 'none';
+  document.getElementById('controls-hint').style.display = 'none';
+  document.getElementById('fps-counter').style.display   = 'none';
+  document.getElementById('main-menu').style.display     = 'flex';
+  document.getElementById('menu-footer').style.display   = 'block';
+  updateEvoPointsDisplay();
+};
+document.getElementById('ingame-back-btn').onclick = () => {
+  // Fix 1: cancel any pending death popup
+  if (deathTimeoutId !== null) { clearTimeout(deathTimeoutId); deathTimeoutId = null; }
+  gameStarted = false;
+  player.alive = false;
+  document.getElementById('ui').style.display            = 'none';
+  document.getElementById('controls-hint').style.display = 'none';
+  document.getElementById('fps-counter').style.display   = 'none';
+  document.getElementById('main-menu').style.display     = 'flex';
+  document.getElementById('menu-footer').style.display   = 'block';
+  updateEvoPointsDisplay();
+  updateLevelDisplay();
+};
+
+// ── Premium (helpers below; vars/init moved to top of script) ─────────
+
+function formatExpiry(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function updateShopPremiumUI() {
+  const active   = isPremiumActive();
+  const banner   = document.getElementById('premium-active-banner');
+  const noStack  = document.getElementById('premium-no-stack-notice');
+  const tiers    = document.querySelectorAll('.premium-tier');
+  const statusEl = document.getElementById('premium-status-label');
+
+  if (active) {
+    banner.classList.add('visible');
+    noStack.classList.add('visible');
+    const expDate = premiumExpiry.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+    const expTime = premiumExpiry.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+    document.getElementById('premium-expiry-text').textContent = `Expires ${expDate} at ${expTime}`;
+    const endDate = premiumExpiry.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+    statusEl.textContent = `Thanks for buying premium! Your subscription ends on: ${endDate} at ${expTime}`;
+    statusEl.style.color = '#e8c820';
+  } else {
+    banner.classList.remove('visible');
+    noStack.classList.remove('visible');
+    statusEl.textContent = 'You have no active premium subscription.';
+    statusEl.style.color = 'rgba(255,255,255,0.6)';
+  }
+
+  tiers.forEach(t => {
+    if (active || evoPoints < parseInt(t.dataset.cost)) t.classList.add('disabled');
+    else t.classList.remove('disabled');
+  });
+  updatePremiumBoostDesc();
+}
+
+document.querySelectorAll('.premium-tier').forEach(tier => {
+  tier.addEventListener('click', () => {
+    if (isPremiumActive()) return;
+    const days  = parseInt(tier.dataset.days);
+    const cost  = parseInt(tier.dataset.cost);
+    const msgEl = document.getElementById('premium-msg');
+
+    if (evoPoints < cost) {
+      msgEl.style.color = '#ff4444';
+      msgEl.textContent = `✗ Not enough EvoPoints — you need ${cost.toLocaleString('en-US')} EP.`;
+      setTimeout(() => msgEl.textContent = '', 3500);
+      return;
+    }
+
+    evoPoints -= cost;
+    saveEvoPoints();
+    updateEvoPointsDisplay();
+    document.getElementById('shop-ep-amount').textContent = evoPoints.toLocaleString('en-US');
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+    premiumExpiry = expiry;
+    savePremium();
+
+    msgEl.textContent = '';
+    updateShopPremiumUI();
+  });
+});
+
+// ── Shop tab switching ────────────────────────────────────────────────
+document.querySelectorAll('.shop-nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const tabId = item.dataset.tab;
+    // Update nav highlight
+    document.querySelectorAll('.shop-nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    // Show correct tab
+    document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+  });
+});
+
+// ── Shop overlay ──────────────────────────────────────────────────────
+document.getElementById('shop-panel').addEventListener('click', () => {
+  document.getElementById('shop-ep-amount').textContent = evoPoints.toLocaleString('en-US');
+  // Always open to Premium tab
+  document.querySelectorAll('.shop-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.shop-nav-item[data-tab="premium"]').classList.add('active');
+  document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-premium').classList.add('active');
+  updateShopPremiumUI();
+  document.getElementById('shop-blur').classList.add('open');
+});
+document.getElementById('shop-close-btn').addEventListener('click', () => {
+  document.getElementById('shop-blur').classList.remove('open');
+});
+
+// ── Main loop ─────────────────────────────────────────────────────────
+let deathTimeoutId = null; // Fix 1: track pending death popup so it can be cancelled
+let lastMaintain = 0;
+let lastTs = 0; // tracks previous frame timestamp for delta-time
+
+// FPS tracking
+let fpsDisplay   = 0;
+let fpsFrameCount = 0;
+let fpsAccum      = 0;
+const fpsEl = document.getElementById('fps-counter');
+
+function loop(ts) {
+  requestAnimationFrame(loop);
+
+  if (!gameStarted) return;
+
+  // Delta-time: ratio of actual frame duration to target (16.67ms = 60fps).
+  // Capped at 3× so a long stall doesn't teleport entities.
+  const rawMs = lastTs === 0 ? (1000 / 60) : (ts - lastTs);
+  const dt = Math.min(rawMs / (1000 / 60), 3);
+  lastTs = ts;
+
+  // FPS: average over ~0.5s
+  fpsAccum      += rawMs;
+  fpsFrameCount += 1;
+  if (fpsAccum >= 500) {
+    fpsDisplay    = Math.round(fpsFrameCount / (fpsAccum / 1000));
+    fpsFrameCount = 0;
+    fpsAccum      = 0;
+    fpsEl.textContent = 'FPS: ' + fpsDisplay;
+  }
+
+  if (!player.alive) {
+    // Keep rendering for the explosion
+    if (particles.length > 0) {
+      labelTick += dt;
+      updateParticles();
+      updateCam();
+      drawWorld();
+      updateHUD(dt);
+    }
+    return;
+  }
+
+  labelTick += dt;
+  acTick(dt);
+  updatePlayer(dt);
+  for (const b of bots) if (b.alive) updateBot(b, dt);
+  updateParticles();
+
+  if (ts - lastMaintain > 2000) {
+    bots = bots.filter(b => b.alive);
+    while (bots.length  < BOT_CAP)   spawnBot();
+    while (food.length  < WHITE_CAP) spawnFood();
+    lastMaintain = ts;
+  }
+
+  updateCam();
+  drawWorld();
+  updateHUD(dt);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
