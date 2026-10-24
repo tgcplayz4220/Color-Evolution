@@ -6,7 +6,7 @@ Welcome to **Color Evolution Game**, a single-player survival game where color i
 
 You begin your journey as a tiny **Red Level 1 circle** in a vast, grey arena. Your mission? Survive, collect XP, level up, and evolve into increasingly powerful colors. But don't get too comfortable. The arena is filled with other circles, and not everything you encounter is something you can defeat.
 
-## 🔴🟠🟡🟢 Evolve Your Way to the Top!
+## 🔴🟠🟡🟢🔵 Evolve Your Way to the Top!
 
 In Color Evolution Game, progression is everything. Begin as Red, work your way through the levels, and eventually unlock entirely new color tiers. Each evolution brings you one step closer to becoming a force to be reckoned with.
 
@@ -16,6 +16,7 @@ Your journey currently takes you through four color tiers:
 - 🟠 **Orange** — You're getting stronger, but there are still bigger threats out there.
 - 🟡 **Yellow** — You've come a long way. Can you keep climbing?
 - 🟢 **Green** — You've reached a higher tier of evolution!
+- 🔵 **Blue** — You're getting better! Keep going!
 
 Each color contains **nine levels**, giving you plenty of progression to work toward. Earn experience, cross level thresholds, and keep pushing forward!
 
@@ -68,9 +69,9 @@ For now, the focus is on building a working game, testing its mechanics, and lay
 - **Genre:** Single-player survival
 - **Platform:** PC web browser
 - **Gameplay:** Arena survival, AI bots, XP collection, and color evolution
-- **Current Colors:** Red, Orange, Yellow, and Green
+- **Current Colors:** Red, Orange, Yellow, Green, and Blue
 - **Controls:** WASD
-- **Release:** v2026.10.22
+- **Release:** v2026.10.24
 
 Color Evolution Game is a developing project built around one central idea: **survival leads to evolution, and evolution leads to greater power.**
 
